@@ -3,99 +3,101 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import io
 
-# Initialisation des données
+st.set_page_config(page_title="IT M&A Cost Modeling", layout="wide")
+
+# Initialize session state
 if "applications" not in st.session_state:
-    st.session_state.applications = []
+    st.session_state.applications = pd.DataFrame(columns=["Nom", "Coût OPEX", "Coût CAPEX", "Adhérences Infra", "Adhérences Applis"])
+if "infra_elements" not in st.session_state:
+    st.session_state.infra_elements = pd.DataFrame(columns=["Nom", "Type", "Coût OPEX", "Coût CAPEX"])
+if "mosaic_socles" not in st.session_state:
+    st.session_state.mosaic_socles = pd.DataFrame(columns=["Nom", "Éléments inclus", "Coût OPEX", "Coût CAPEX"])
 
-if "infrastructures" not in st.session_state:
-    st.session_state.infrastructures = []
+st.title("🧠 IT M&A Cost Modeling - Groupe Avril")
 
-if "adhérences" not in st.session_state:
-    st.session_state.adhérences = []
+tab1, tab2 = st.tabs(["⚙️ Paramétrage", "📊 Simulation"])
 
-st.title("🧠 IT M&A - Modélisation des coûts OPEX & CAPEX")
+with tab1:
+    st.header("Paramétrage des éléments IT")
 
-menu = st.sidebar.radio("Menu", ["Paramétrage", "Simulation"])
+    subtab1, subtab2, subtab3 = st.tabs(["Applications", "Éléments d'Infrastructure", "Socles Mosaic"])
 
-if menu == "Paramétrage":
-    st.header("🔧 Paramétrage des environnements IT")
-
-    with st.expander("➕ Ajouter une application"):
-        nom_app = st.text_input("Nom de l'application")
-        opex_app = st.number_input("Coût OPEX annuel (€)", min_value=0.0)
-        capex_app = st.number_input("Coût CAPEX projet (€)", min_value=0.0)
-        infra_associee = st.text_input("Nom de l'infrastructure associée")
-        autres_adhérences = st.text_input("Autres applications liées (séparées par des virgules)")
-
-        if st.button("Ajouter l'application"):
-            st.session_state.applications.append({
-                "nom": nom_app,
-                "opex": opex_app,
-                "capex": capex_app,
-                "infra": infra_associee,
-                "liens": [x.strip() for x in autres_adhérences.split(",") if x.strip()]
-            })
-            st.success(f"Application '{nom_app}' ajoutée.")
-
-    with st.expander("➕ Ajouter une infrastructure"):
-        nom_infra = st.text_input("Nom de l'infrastructure")
-        contenu_infra = st.text_area("Contenu (serveurs, réseau, etc.)")
-        opex_infra = st.number_input("OPEX annuel infra (€)", min_value=0.0, key="opex_infra")
-        capex_infra = st.number_input("CAPEX projet infra (€)", min_value=0.0, key="capex_infra")
-
-        if st.button("Ajouter l'infrastructure"):
-            st.session_state.infrastructures.append({
-                "nom": nom_infra,
-                "contenu": contenu_infra,
-                "opex": opex_infra,
-                "capex": capex_infra
-            })
-            st.success(f"Infrastructure '{nom_infra}' ajoutée.")
-
-    with st.expander("📋 Visualiser les éléments configurés"):
+    with subtab1:
         st.subheader("Applications")
-        for app in st.session_state.applications:
-            st.write(app)
+        st.session_state.applications = st.data_editor(
+            st.session_state.applications,
+            num_rows="dynamic",
+            use_container_width=True
+        )
 
-        st.subheader("Infrastructures")
-        for infra in st.session_state.infrastructures:
-            st.write(infra)
+    with subtab2:
+        st.subheader("Éléments d'Infrastructure")
+        st.session_state.infra_elements = st.data_editor(
+            st.session_state.infra_elements,
+            num_rows="dynamic",
+            use_container_width=True
+        )
 
-elif menu == "Simulation":
-    st.header("📊 Simulation des coûts IT")
+    with subtab3:
+        st.subheader("Socles Mosaic")
+        st.markdown("Définissez les socles Mosaic (Entry, Advanced, Complete) comme des regroupements d'éléments d'infrastructure.")
+        st.session_state.mosaic_socles = st.data_editor(
+            st.session_state.mosaic_socles,
+            num_rows="dynamic",
+            use_container_width=True
+        )
 
-    phase = st.selectbox("Phase M&A", ["Préparation au Closing", "Transition (TSA)", "Post-TSA"])
+with tab2:
+    st.header("Simulation des coûts et timings")
 
-    selected_apps = st.multiselect("Sélectionner les applications", [app["nom"] for app in st.session_state.applications])
-    selected_infras = st.multiselect("Sélectionner les infrastructures", [infra["nom"] for infra in st.session_state.infrastructures])
+    st.subheader("Sélection des éléments")
+    selected_apps = st.multiselect("Applications à intégrer", options=st.session_state.applications["Nom"].tolist())
+    selected_infra = st.multiselect("Éléments d'infrastructure à intégrer", options=st.session_state.infra_elements["Nom"].tolist())
+    selected_socles = st.multiselect("Socles Mosaic à intégrer", options=st.session_state.mosaic_socles["Nom"].tolist())
 
+    st.subheader("Phase du projet")
+    phase = st.selectbox("Choisissez la phase", ["Préparation au Closing", "Transition (TSA)", "Post-TSA"])
+
+    # Calcul des coûts
     total_opex = 0
     total_capex = 0
-    adhérences_detectées = []
 
-    for app in st.session_state.applications:
-        if app["nom"] in selected_apps:
-            total_opex += app["opex"]
-            total_capex += app["capex"]
-            if app["infra"] and app["infra"] not in selected_infras:
-                adhérences_detectées.append(f"{app['nom']} nécessite l'infrastructure {app['infra']}")
-            for lien in app["liens"]:
-                if lien not in selected_apps:
-                    adhérences_detectées.append(f"{app['nom']} est lié à l'application {lien}")
+    apps_df = st.session_state.applications
+    infra_df = st.session_state.infra_elements
+    socles_df = st.session_state.mosaic_socles
 
-    for infra in st.session_state.infrastructures:
-        if infra["nom"] in selected_infras:
-            total_opex += infra["opex"]
-            total_capex += infra["capex"]
+    for app in selected_apps:
+        row = apps_df[apps_df["Nom"] == app]
+        if not row.empty:
+            total_opex += float(row["Coût OPEX"].values[0])
+            total_capex += float(row["Coût CAPEX"].values[0])
 
-    st.subheader("🧮 Résultat de la simulation")
+    for infra in selected_infra:
+        row = infra_df[infra_df["Nom"] == infra]
+        if not row.empty:
+            total_opex += float(row["Coût OPEX"].values[0])
+            total_capex += float(row["Coût CAPEX"].values[0])
+
+    for socle in selected_socles:
+        row = socles_df[socles_df["Nom"] == socle]
+        if not row.empty:
+            total_opex += float(row["Coût OPEX"].values[0])
+            total_capex += float(row["Coût CAPEX"].values[0])
+
+    st.subheader("Résultat de la simulation")
+    st.metric("Coût OPEX total", f"{total_opex:,.2f} €")
+    st.metric("Coût CAPEX total", f"{total_capex:,.2f} €")
     st.write(f"Phase sélectionnée : **{phase}**")
-    st.write(f"Coût OPEX total : **{total_opex:,.2f} €**")
-    st.write(f"Coût CAPEX total : **{total_capex:,.2f} €**")
 
-    if adhérences_detectées:
-        st.warning("⚠️ Adhérences détectées :")
-        for a in adhérences_detectées:
-            st.write(f"- {a}")
-    else:
-        st.success("✅ Aucun problème d'adhérence détecté.")
+    st.subheader("Adhérences détectées")
+    adh_appli = []
+    adh_infra = []
+
+    for app in selected_apps:
+        row = apps_df[apps_df["Nom"] == app]
+        if not row.empty:
+            adh_appli.extend(str(row["Adhérences Applis"].values[0]).split(","))
+            adh_infra.extend(str(row["Adhérences Infra"].values[0]).split(","))
+
+    st.write("🔗 Adhérences applicatives :", list(set(adh_appli)))
+    st.write("🔌 Adhérences infrastructure :", list(set(adh_infra)))
