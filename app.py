@@ -1,124 +1,165 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import io
 
-# Base d'environnements IT pré-remplie
-base_environnements = {
+st.set_page_config(page_title="M&A IT Scenario Tool", layout="wide")
+
+# --- Data Models ---
+default_entities = {
     "Avril Agro": {
         "applications": ["ERP", "CRM", "BI"],
         "infrastructure": ["Serveurs locaux", "VPN", "Stockage NAS"]
     },
     "Avril Nutrition": {
-        "applications": ["SIRH", "WMS", "MES"],
+        "applications": ["SIRH", "WMS", "Portail client"],
         "infrastructure": ["Cloud privé", "Firewall", "Backup"]
     },
     "Avril Ingrédients": {
-        "applications": ["PLM", "SCM", "Portail client"],
-        "infrastructure": ["Cloud public", "Monitoring", "Load balancer"]
+        "applications": ["MES", "LIMS", "SCADA"],
+        "infrastructure": ["Edge computing", "IoT Gateway", "Monitoring"]
     }
 }
 
-# Coûts estimés par application
-couts_applications = {
-    "ERP": {"transition": 100000, "opex": 50000, "capex": 30000},
-    "CRM": {"transition": 80000, "opex": 40000, "capex": 20000},
-    "BI": {"transition": 60000, "opex": 30000, "capex": 15000},
-    "SIRH": {"transition": 50000, "opex": 25000, "capex": 10000},
-    "WMS": {"transition": 70000, "opex": 35000, "capex": 18000},
-    "MES": {"transition": 90000, "opex": 45000, "capex": 22000},
-    "PLM": {"transition": 75000, "opex": 38000, "capex": 17000},
-    "SCM": {"transition": 85000, "opex": 42000, "capex": 19000},
-    "Portail client": {"transition": 40000, "opex": 20000, "capex": 10000}
-}
-
-# Coûts estimés par infrastructure
-couts_infrastructure = {
-    "Serveurs locaux": {"transition": 30000, "opex": 15000, "capex": 10000},
-    "VPN": {"transition": 20000, "opex": 10000, "capex": 5000},
-    "Stockage NAS": {"transition": 25000, "opex": 12000, "capex": 8000},
-    "Cloud privé": {"transition": 40000, "opex": 20000, "capex": 15000},
-    "Firewall": {"transition": 15000, "opex": 8000, "capex": 5000},
-    "Backup": {"transition": 10000, "opex": 5000, "capex": 3000},
-    "Cloud public": {"transition": 35000, "opex": 18000, "capex": 12000},
-    "Monitoring": {"transition": 12000, "opex": 6000, "capex": 4000},
-    "Load balancer": {"transition": 18000, "opex": 9000, "capex": 6000}
-}
-
-# Adhérences selon Mosaic
-mosaic_adhérences = {
+mosaic_profiles = {
     "Mosaic Entry": 1.0,
-    "Mosaic Advanced": 0.9,
-    "Mosaic Complete": 0.8
+    "Mosaic Advanced": 1.2,
+    "Mosaic Complete": 1.5
 }
 
-st.title("Modélisation de scénarios IT pour M&A")
+cost_per_app = 50000
+cost_per_infra = 30000
+adhérence_cost = 10000
 
-nb_scenarios = st.sidebar.slider("Nombre de scénarios à comparer", 1, 3, 1)
-scenarios = []
+# --- Sidebar Navigation ---
+view = st.sidebar.radio("Vue", ["Paramétrage", "Visualisation", "Roadmap / Planning"])
 
-for i in range(nb_scenarios):
-    st.header(f"Scénario {i+1}")
-    entite = st.selectbox(f"Entité pour scénario {i+1}", list(base_environnements.keys()) + ["Personnalisé"], key=f"entite_{i}")
-    if entite != "Personnalisé":
-        apps = base_environnements[entite]["applications"]
-        infra = base_environnements[entite]["infrastructure"]
+# --- Scenario Storage ---
+if "scenarios" not in st.session_state:
+    st.session_state.scenarios = []
+
+# --- Paramétrage View ---
+if view == "Paramétrage":
+    st.title("Paramétrage des scénarios IT")
+
+    num_scenarios = st.number_input("Nombre de scénarios à comparer", min_value=1, max_value=3, value=1)
+
+    st.session_state.scenarios = []
+
+    for i in range(num_scenarios):
+        st.subheader(f"Scénario {i+1}")
+        entity = st.selectbox(f"Entité {i+1}", list(default_entities.keys()), key=f"entity_{i}")
+        mosaic = st.selectbox(f"Socle Mosaic {i+1}", list(mosaic_profiles.keys()), key=f"mosaic_{i}")
+        duration = st.slider(f"Durée de projection (années) {i+1}", 1, 10, 5, key=f"duration_{i}")
+
+        apps = st.multiselect(f"Applications métier {i+1}", default_entities[entity]["applications"], default=default_entities[entity]["applications"], key=f"apps_{i}")
+        infra = st.multiselect(f"Infrastructure IT {i+1}", default_entities[entity]["infrastructure"], default=default_entities[entity]["infrastructure"], key=f"infra_{i}")
+
+        adhérences = st.slider(f"Nombre d’adhérences applicatives {i+1}", 0, 10, 2, key=f"adh_{i}")
+
+        transition = st.number_input(f"Coût de transition initial (€) {i+1}", min_value=0, value=200000, key=f"trans_{i}")
+        synergies = st.number_input(f"Synergies annuelles (€) {i+1}", min_value=0, value=50000, key=f"syn_{i}")
+
+        opex = len(apps) * cost_per_app + len(infra) * cost_per_infra + adhérences * adhérence_cost
+        capex = int(opex * 0.5)
+        mosaic_factor = mosaic_profiles[mosaic]
+
+        scenario = {
+            "entity": entity,
+            "mosaic": mosaic,
+            "duration": duration,
+            "apps": apps,
+            "infra": infra,
+            "adhérences": adhérences,
+            "transition": transition,
+            "synergies": synergies,
+            "opex": int(opex * mosaic_factor),
+            "capex": int(capex * mosaic_factor)
+        }
+
+        st.session_state.scenarios.append(scenario)
+
+# --- Visualisation View ---
+elif view == "Visualisation":
+    st.title("Visualisation des projections de coûts")
+
+    if not st.session_state.scenarios:
+        st.warning("Veuillez d'abord paramétrer les scénarios.")
     else:
-        apps = st.multiselect(f"Applications métier scénario {i+1}", list(couts_applications.keys()), key=f"apps_{i}")
-        infra = st.multiselect(f"Infrastructure IT scénario {i+1}", list(couts_infrastructure.keys()), key=f"infra_{i}")
+        df_all = pd.DataFrame()
+        fig, ax = plt.subplots()
 
-    mosaic = st.selectbox(f"Socle d'intégration Mosaic scénario {i+1}", list(mosaic_adhérences.keys()), key=f"mosaic_{i}")
-    years = st.slider(f"Durée de projection (années) scénario {i+1}", 1, 10, 5, key=f"years_{i}")
+        for idx, sc in enumerate(st.session_state.scenarios):
+            years = list(range(1, sc["duration"] + 1))
+            costs = []
+            for y in years:
+                if y == 1:
+                    cost = sc["transition"] + sc["opex"] + sc["capex"] - sc["synergies"]
+                else:
+                    cost = sc["opex"] + sc["capex"] - sc["synergies"]
+                costs.append(cost)
 
-    # Calcul des coûts
-    transition = sum(couts_applications[app]["transition"] for app in apps) + sum(couts_infrastructure[inf]["transition"] for inf in infra)
-    opex = sum(couts_applications[app]["opex"] for app in apps) + sum(couts_infrastructure[inf]["opex"] for inf in infra)
-    capex = sum(couts_applications[app]["capex"] for app in apps) + sum(couts_infrastructure[inf]["capex"] for inf in infra)
+            df = pd.DataFrame({
+                "Année": years,
+                f"Scénario {idx+1} ({sc['entity']})": costs
+            })
+            df_all = pd.concat([df_all, df], axis=1)
+            ax.plot(years, costs, marker='o', label=f"Scénario {idx+1} ({sc['entity']})")
 
-    # Adhérences
-    facteur_adh = mosaic_adhérences[mosaic]
-    transition *= facteur_adh
-    opex *= facteur_adh
-    capex *= facteur_adh
+        st.dataframe(df_all)
+        ax.set_title("Projection des coûts IT")
+        ax.set_xlabel("Année")
+        ax.set_ylabel("Coût (€)")
+        ax.legend()
+        st.pyplot(fig)
 
-    # Projection
-    projection = []
-    for y in range(1, years+1):
-        if y == 1:
-            total = transition + opex + capex
-        else:
-            total = opex + capex
-        projection.append(total)
+        # Export Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_all.to_excel(writer, index=False, sheet_name="Projections")
+        st.download_button("📥 Télécharger les projections Excel", data=output.getvalue(), file_name="projections_mna.xlsx")
 
-    df = pd.DataFrame({
-        "Année": list(range(1, years+1)),
-        "Coût projeté (€)": projection
-    })
+# --- Roadmap / Planning View ---
+elif view == "Roadmap / Planning":
+    st.title("Roadmap / Planning des phases IT")
 
-    scenarios.append((f"Scénario {i+1}", df))
+    if "roadmap" not in st.session_state:
+        st.session_state.roadmap = []
 
-# Affichage des résultats
-st.subheader("Comparaison des scénarios")
-for name, df in scenarios:
-    st.write(name)
-    st.dataframe(df)
+    with st.form("roadmap_form"):
+        st.subheader("Ajouter une phase")
+        phase_name = st.text_input("Nom de la phase")
+        phase_desc = st.text_area("Description")
+        phase_type = st.selectbox("Type de phase", ["Avant J0", "Post J0"])
+        start_week = st.number_input("Semaine de démarrage", min_value=0, value=0)
+        duration_week = st.number_input("Durée (semaines)", min_value=1, value=4)
+        submitted = st.form_submit_button("Ajouter")
 
-# Graphique comparatif
-fig, ax = plt.subplots()
-for name, df in scenarios:
-    ax.plot(df["Année"], df["Coût projeté (€)"], marker='o', label=name)
-ax.set_title("Projection des coûts IT")
-ax.set_xlabel("Année")
-ax.set_ylabel("Coût (€)")
-ax.legend()
-st.pyplot(fig)
+        if submitted and phase_name:
+            st.session_state.roadmap.append({
+                "Nom": phase_name,
+                "Description": phase_desc,
+                "Type": phase_type,
+                "Début": start_week,
+                "Durée": duration_week,
+                "Fin": start_week + duration_week
+            })
 
-# Export Excel
-st.subheader("Export Excel")
-def export_excel(scenarios):
-    with pd.ExcelWriter("projection_scenarios.xlsx") as writer:
-        for name, df in scenarios:
-            df.to_excel(writer, sheet_name=name, index=False)
+    if st.session_state.roadmap:
+        df_roadmap = pd.DataFrame(st.session_state.roadmap)
+        st.subheader("Tableau des phases")
+        st.dataframe(df_roadmap)
 
-if st.button("Exporter les scénarios en Excel"):
-    export_excel(scenarios)
-    st.success("Fichier Excel généré : projection_scenarios.xlsx")
+        # Gantt chart
+        fig, ax = plt.subplots(figsize=(10, 4))
+        for idx, row in df_roadmap.iterrows():
+            ax.barh(row["Nom"], row["Durée"], left=row["Début"], color="skyblue" if row["Type"] == "Avant J0" else "lightgreen")
+        ax.set_xlabel("Semaines")
+        ax.set_title("Diagramme de Gantt des phases IT")
+        st.pyplot(fig)
+
+        # Export Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_roadmap.to_excel(writer, index=False, sheet_name="Roadmap")
+        st.download_button("📥 Télécharger la roadmap Excel", data=output.getvalue(), file_name="roadmap_mna.xlsx")
