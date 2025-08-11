@@ -2,101 +2,93 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="IT M&A Cost Modeling", layout="wide")
+st.set_page_config(page_title="IT M&A Simulator", layout="wide")
 
-# Initialize session state
+# Initialisation des données
 if "applications" not in st.session_state:
-    st.session_state.applications = pd.DataFrame(columns=["Nom", "Coût OPEX", "Coût CAPEX", "Adhérences Infra", "Adhérences Applis"])
-if "infra_elements" not in st.session_state:
-    st.session_state.infra_elements = pd.DataFrame(columns=["Nom", "Type", "Coût OPEX", "Coût CAPEX"])
-if "mosaic_socles" not in st.session_state:
-    st.session_state.mosaic_socles = pd.DataFrame(columns=["Nom", "Éléments inclus", "Coût OPEX", "Coût CAPEX"])
+    st.session_state.applications = pd.DataFrame(columns=["nom", "OPEX", "CAPEX", "adhérences_infra", "adhérences_appli"])
 
-st.title("🧠 IT M&A Cost Modeling - Groupe Avril")
+if "infrastructure_elements" not in st.session_state:
+    st.session_state.infrastructure_elements = pd.DataFrame(columns=["nom", "type", "coût"])
+
+if "socles_mosaic" not in st.session_state:
+    st.session_state.socles_mosaic = pd.DataFrame(columns=["nom", "éléments_infra", "coût_total"])
+
+st.title("💼 IT M&A Simulator - Groupe Avril")
 
 tab1, tab2 = st.tabs(["⚙️ Paramétrage", "📊 Simulation"])
 
 with tab1:
     st.header("Paramétrage des éléments IT")
 
-    subtab1, subtab2, subtab3 = st.tabs(["Applications", "Éléments d'Infrastructure", "Socles Mosaic"])
+    st.subheader("Applications")
+    st.session_state.applications = st.data_editor(
+        st.session_state.applications,
+        num_rows="dynamic",
+        use_container_width=True
+    )
 
-    with subtab1:
-        st.subheader("Applications")
-        st.session_state.applications = st.data_editor(
-            st.session_state.applications,
-            num_rows="dynamic",
-            use_container_width=True
-        )
+    st.subheader("Éléments d'infrastructure")
+    st.session_state.infrastructure_elements = st.data_editor(
+        st.session_state.infrastructure_elements,
+        num_rows="dynamic",
+        use_container_width=True
+    )
 
-    with subtab2:
-        st.subheader("Éléments d'Infrastructure")
-        st.session_state.infra_elements = st.data_editor(
-            st.session_state.infra_elements,
-            num_rows="dynamic",
-            use_container_width=True
-        )
-
-    with subtab3:
-        st.subheader("Socles Mosaic")
-        st.markdown("Définissez les socles Mosaic (Entry, Advanced, Complete) comme des regroupements d'éléments d'infrastructure.")
-        st.session_state.mosaic_socles = st.data_editor(
-            st.session_state.mosaic_socles,
-            num_rows="dynamic",
-            use_container_width=True
-        )
+    st.subheader("Socles Mosaic")
+    st.session_state.socles_mosaic = st.data_editor(
+        st.session_state.socles_mosaic,
+        num_rows="dynamic",
+        use_container_width=True
+    )
 
 with tab2:
     st.header("Simulation des coûts et timings")
 
-    st.subheader("Sélection des éléments")
-    selected_apps = st.multiselect("Applications à intégrer", options=st.session_state.applications["Nom"].tolist())
-    selected_infra = st.multiselect("Éléments d'infrastructure à intégrer", options=st.session_state.infra_elements["Nom"].tolist())
-    selected_socles = st.multiselect("Socles Mosaic à intégrer", options=st.session_state.mosaic_socles["Nom"].tolist())
+    phase = st.selectbox("Phase du projet", ["Préparation au Closing", "Transition (TSA)", "Post-TSA"])
 
-    st.subheader("Phase du projet")
-    phase = st.selectbox("Choisissez la phase", ["Préparation au Closing", "Transition (TSA)", "Post-TSA"])
+    selected_apps = st.multiselect(
+        "Applications à intégrer",
+        options=st.session_state.applications["nom"].tolist()
+    )
 
-    # Calcul des coûts
+    selected_infra = st.multiselect(
+        "Éléments d'infrastructure à intégrer",
+        options=st.session_state.infrastructure_elements["nom"].tolist()
+    )
+
+    selected_socles = st.multiselect(
+        "Socles Mosaic à intégrer",
+        options=st.session_state.socles_mosaic["nom"].tolist()
+    )
+
     total_opex = 0
     total_capex = 0
 
-    apps_df = st.session_state.applications
-    infra_df = st.session_state.infra_elements
-    socles_df = st.session_state.mosaic_socles
-
     for app in selected_apps:
-        row = apps_df[apps_df["Nom"] == app]
-        if not row.empty:
-            total_opex += float(row["Coût OPEX"].values[0])
-            total_capex += float(row["Coût CAPEX"].values[0])
+        app_data = st.session_state.applications[st.session_state.applications["nom"] == app]
+        if not app_data.empty:
+            total_opex += float(app_data["OPEX"].values[0])
+            total_capex += float(app_data["CAPEX"].values[0])
 
     for infra in selected_infra:
-        row = infra_df[infra_df["Nom"] == infra]
-        if not row.empty:
-            total_opex += float(row["Coût OPEX"].values[0])
-            total_capex += float(row["Coût CAPEX"].values[0])
+        infra_data = st.session_state.infrastructure_elements[st.session_state.infrastructure_elements["nom"] == infra]
+        if not infra_data.empty:
+            total_opex += float(infra_data["coût"].values[0])
 
     for socle in selected_socles:
-        row = socles_df[socles_df["Nom"] == socle]
-        if not row.empty:
-            total_opex += float(row["Coût OPEX"].values[0])
-            total_capex += float(row["Coût CAPEX"].values[0])
+        socle_data = st.session_state.socles_mosaic[st.session_state.socles_mosaic["nom"] == socle]
+        if not socle_data.empty:
+            total_capex += float(socle_data["coût_total"].values[0])
 
     st.subheader("Résultat de la simulation")
-    st.metric("Coût OPEX total", f"{total_opex:,.2f} €")
-    st.metric("Coût CAPEX total", f"{total_capex:,.2f} €")
-    st.write(f"Phase sélectionnée : **{phase}**")
+    st.metric("Coût OPEX estimé", f"{total_opex:,.2f} €")
+    st.metric("Coût CAPEX estimé", f"{total_capex:,.2f} €")
 
-    st.subheader("Adhérences détectées")
-    adh_appli = []
-    adh_infra = []
-
+    st.write("📌 Adhérences détectées :")
     for app in selected_apps:
-        row = apps_df[apps_df["Nom"] == app]
-        if not row.empty:
-            adh_appli.extend(str(row["Adhérences Applis"].values[0]).split(","))
-            adh_infra.extend(str(row["Adhérences Infra"].values[0]).split(","))
-
-    st.write("🔗 Adhérences applicatives :", list(set(adh_appli)))
-    st.write("🔌 Adhérences infrastructure :", list(set(adh_infra)))
+        app_data = st.session_state.applications[st.session_state.applications["nom"] == app]
+        if not app_data.empty:
+            adh_infra = app_data["adhérences_infra"].values[0]
+            adh_appli = app_data["adhérences_appli"].values[0]
+            st.write(f"- **{app}** : Infra → {adh_infra}, Appli → {adh_appli}")
