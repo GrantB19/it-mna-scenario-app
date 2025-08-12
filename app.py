@@ -4,84 +4,93 @@ import pandas as pd
 # Page configuration
 st.set_page_config(page_title="IT M&A Scenario App", layout="wide")
 
-st.title("🧩 IT M&A Scenario Simulator")
+# --- Session State Initialization ---
+if "infra_catalog" not in st.session_state:
+    st.session_state.infra_catalog = pd.DataFrame(columns=["Élément", "CAPEX (€)", "OPEX (€ / an)"])
+if "app_catalog" not in st.session_state:
+    st.session_state.app_catalog = pd.DataFrame(columns=["Application", "CAPEX (€)", "OPEX (€ / an)"])
+if "entities" not in st.session_state:
+    st.session_state.entities = {}
 
-# --- Sidebar Configuration ---
-st.sidebar.header("⚙️ Paramétrage")
+# --- Sidebar Navigation ---
+st.sidebar.title("🧭 Navigation")
+page = st.sidebar.radio("Aller à", ["Définir les environnements IT types", "Composer l'environnement d'une entité", "Restitution des coûts"])
 
-# Section: Modifier les éléments d'infrastructure disponibles
-st.sidebar.subheader("🔧 Gestion des éléments d'infrastructure disponibles")
-default_infra_elements = ["PC", "Serveur", "LAN", "WAN", "Firewall", "WiFi", "Switch", "Backup", "Antivirus"]
-infra_elements_input = st.sidebar.text_area(
-    "Liste des éléments d'infrastructure (une par ligne)",
-    "\n".join(default_infra_elements)
-)
-infra_elements_available = [e.strip() for e in infra_elements_input.splitlines() if e.strip()]
+# --- Page 1: Définir les environnements IT types ---
+if page == "Définir les environnements IT types":
+    st.title("🔧 Définir les environnements IT types")
 
-# Section: Définir les socles Mosaic
-st.sidebar.subheader("🏗️ Définir les socles Mosaic")
-mosaic_entry_input = st.sidebar.text_area("Socle Entry", "PC\nLAN\nFirewall")
-mosaic_advanced_input = st.sidebar.text_area("Socle Advanced", "PC\nServeur\nLAN\nWAN\nFirewall")
-mosaic_complete_input = st.sidebar.text_area("Socle Complete", "PC\nServeur\nLAN\nWAN\nFirewall\nWiFi\nSwitch\nBackup\nAntivirus")
+    st.subheader("Éléments d'infrastructure disponibles")
+    infra_editor = st.data_editor(st.session_state.infra_catalog, num_rows="dynamic", use_container_width=True)
+    st.session_state.infra_catalog = infra_editor
 
-mosaic_options = {
-    "Entry": [e.strip() for e in mosaic_entry_input.splitlines() if e.strip()],
-    "Advanced": [e.strip() for e in mosaic_advanced_input.splitlines() if e.strip()],
-    "Complete": [e.strip() for e in mosaic_complete_input.splitlines() if e.strip()]
-}
-selected_mosaic = st.sidebar.selectbox("Choisir un socle Mosaic", list(mosaic_options.keys()))
-mosaic_elements = mosaic_options[selected_mosaic]
+    st.subheader("Applications disponibles")
+    app_editor = st.data_editor(st.session_state.app_catalog, num_rows="dynamic", use_container_width=True)
+    st.session_state.app_catalog = app_editor
 
-# Section: Définir les applications
-st.sidebar.subheader("📱 Applications")
-app_list_input = st.sidebar.text_area("Lister les applications (une par ligne)", "ERP\nCRM\nWMS\nBI")
-app_list = [app.strip() for app in app_list_input.splitlines() if app.strip()]
+# --- Page 2: Composer l'environnement d'une entité ---
+elif page == "Composer l'environnement d'une entité":
+    st.title("🏢 Composer l'environnement IT d'une entité juridique")
 
-# Section: Sélectionner les éléments d'infrastructure à utiliser
-st.sidebar.subheader("🧩 Sélectionner les éléments d'infrastructure à utiliser")
-infra_elements_selected = st.sidebar.multiselect(
-    "Éléments sélectionnés",
-    options=infra_elements_available,
-    default=infra_elements_available
-)
+    entity_name = st.text_input("Nom de l'entité juridique")
+    if entity_name:
+        st.subheader("Sélectionner les éléments d'infrastructure")
+        selected_infra = st.multiselect("Éléments d'infrastructure", st.session_state.infra_catalog["Élément"].tolist())
 
-# --- Main Interface ---
-st.header("📊 Visualiser et modifier les coûts des éléments")
+        st.subheader("Sélectionner les applications")
+        selected_apps = st.multiselect("Applications", st.session_state.app_catalog["Application"].tolist())
 
-# Créer le tableau des coûts
-all_elements = list(set(infra_elements_selected + mosaic_elements + app_list))
-costs_data = {
-    "Élément": all_elements,
-    "Type": ["Infrastructure" if e in infra_elements_available else "Application" for e in all_elements],
-    "CAPEX (€)": [1000] * len(all_elements),
-    "OPEX (€ / an)": [500] * len(all_elements)
-}
-costs_df = pd.DataFrame(costs_data)
+        if st.button("Enregistrer l'environnement IT de l'entité"):
+            st.session_state.entities[entity_name] = {
+                "infrastructure": selected_infra,
+                "applications": selected_apps
+            }
+            st.success(f"Environnement IT enregistré pour l'entité {entity_name}")
 
-edited_df = st.data_editor(costs_df, num_rows="dynamic", use_container_width=True)
-st.divider()
+    st.divider()
+    st.subheader("📋 Entités enregistrées")
+    for name, config in st.session_state.entities.items():
+        st.markdown(f"**{name}**")
+        st.write("Infrastructure:", config["infrastructure"])
+        st.write("Applications:", config["applications"])
 
-# --- Simulation ---
-st.header("📈 Simulation des coûts par phase M&A")
+# --- Page 3: Restitution des coûts ---
+elif page == "Restitution des coûts":
+    st.title("📊 Restitution des coûts par entité et par phase M&A")
 
-phases = ["Préparation au Closing", "Transition (TSA)", "Post-TSA"]
-phase_durations = {
-    "Préparation au Closing": 3,
-    "Transition (TSA)": 6,
-    "Post-TSA": 12
-}
+    phases = ["Préparation au Closing", "Transition (TSA)", "Post-TSA"]
+    phase_durations = {
+        "Préparation au Closing": 3,
+        "Transition (TSA)": 6,
+        "Post-TSA": 12
+    }
 
-simulation = []
-for _, row in edited_df.iterrows():
-    for phase in phases:
-        simulation.append({
-            "Élément": row["Élément"],
-            "Type": row["Type"],
-            "Phase": phase,
-            "Durée (mois)": phase_durations[phase],
-            "CAPEX (€)": row["CAPEX (€)"] if phase == "Préparation au Closing" else 0,
-            "OPEX (€)": row["OPEX (€ / an)"] * (phase_durations[phase] / 12)
-        })
+    simulation = []
+    for entity, config in st.session_state.entities.items():
+        for element in config["infrastructure"]:
+            cost_row = st.session_state.infra_catalog[st.session_state.infra_catalog["Élément"] == element].iloc[0]
+            for phase in phases:
+                simulation.append({
+                    "Entité": entity,
+                    "Élément": element,
+                    "Type": "Infrastructure",
+                    "Phase": phase,
+                    "Durée (mois)": phase_durations[phase],
+                    "CAPEX (€)": cost_row["CAPEX (€)"] if phase == "Préparation au Closing" else 0,
+                    "OPEX (€)": cost_row["OPEX (€ / an)"] * (phase_durations[phase] / 12)
+                })
+        for app in config["applications"]:
+            cost_row = st.session_state.app_catalog[st.session_state.app_catalog["Application"] == app].iloc[0]
+            for phase in phases:
+                simulation.append({
+                    "Entité": entity,
+                    "Élément": app,
+                    "Type": "Application",
+                    "Phase": phase,
+                    "Durée (mois)": phase_durations[phase],
+                    "CAPEX (€)": cost_row["CAPEX (€)"] if phase == "Préparation au Closing" else 0,
+                    "OPEX (€)": cost_row["OPEX (€ / an)"] * (phase_durations[phase] / 12)
+                })
 
-sim_df = pd.DataFrame(simulation)
-st.dataframe(sim_df, use_container_width=True)
+    sim_df = pd.DataFrame(simulation)
+    st.dataframe(sim_df, use_container_width=True)
