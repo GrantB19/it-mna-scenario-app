@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 
@@ -10,39 +9,54 @@ st.title("🧩 IT M&A Scenario Simulator")
 # --- Sidebar Configuration ---
 st.sidebar.header("⚙️ Paramétrage")
 
-# Infrastructure Elements
-st.sidebar.subheader("Éléments d'infrastructure")
-infra_elements = st.sidebar.multiselect(
-    "Sélectionner les éléments d'infrastructure",
-    ["PC", "Serveur", "LAN", "WAN", "Firewall", "WiFi", "Switch", "Backup", "Antivirus"]
+# Section: Modifier les éléments d'infrastructure disponibles
+st.sidebar.subheader("🔧 Gestion des éléments d'infrastructure disponibles")
+default_infra_elements = ["PC", "Serveur", "LAN", "WAN", "Firewall", "WiFi", "Switch", "Backup", "Antivirus"]
+infra_elements_input = st.sidebar.text_area(
+    "Liste des éléments d'infrastructure (une par ligne)",
+    "\n".join(default_infra_elements)
 )
+infra_elements_available = [e.strip() for e in infra_elements_input.splitlines() if e.strip()]
 
-# Mosaic Platforms
-st.sidebar.subheader("Socles Mosaic")
+# Section: Définir les socles Mosaic
+st.sidebar.subheader("🏗️ Définir les socles Mosaic")
+mosaic_entry_input = st.sidebar.text_area("Socle Entry", "PC\nLAN\nFirewall")
+mosaic_advanced_input = st.sidebar.text_area("Socle Advanced", "PC\nServeur\nLAN\nWAN\nFirewall")
+mosaic_complete_input = st.sidebar.text_area("Socle Complete", "PC\nServeur\nLAN\nWAN\nFirewall\nWiFi\nSwitch\nBackup\nAntivirus")
+
 mosaic_options = {
-    "Entry": ["PC", "LAN", "Firewall"],
-    "Advanced": ["PC", "Serveur", "LAN", "WAN", "Firewall"],
-    "Complete": ["PC", "Serveur", "LAN", "WAN", "Firewall", "WiFi", "Switch", "Backup", "Antivirus"]
+    "Entry": [e.strip() for e in mosaic_entry_input.splitlines() if e.strip()],
+    "Advanced": [e.strip() for e in mosaic_advanced_input.splitlines() if e.strip()],
+    "Complete": [e.strip() for e in mosaic_complete_input.splitlines() if e.strip()]
 }
 selected_mosaic = st.sidebar.selectbox("Choisir un socle Mosaic", list(mosaic_options.keys()))
 mosaic_elements = mosaic_options[selected_mosaic]
 
-# Applications
-st.sidebar.subheader("Applications")
-app_list = st.sidebar.text_area("Lister les applications (une par ligne)", "ERP\nCRM\nWMS\nBI")
+# Section: Définir les applications
+st.sidebar.subheader("📱 Applications")
+app_list_input = st.sidebar.text_area("Lister les applications (une par ligne)", "ERP\nCRM\nWMS\nBI")
+app_list = [app.strip() for app in app_list_input.splitlines() if app.strip()]
 
-# Coûts associés
-st.sidebar.subheader("Coûts associés")
-all_elements = list(set(infra_elements + mosaic_elements + app_list.splitlines()))
+# Section: Sélectionner les éléments d'infrastructure à utiliser
+st.sidebar.subheader("🧩 Sélectionner les éléments d'infrastructure à utiliser")
+infra_elements_selected = st.sidebar.multiselect(
+    "Éléments sélectionnés",
+    options=infra_elements_available,
+    default=infra_elements_available
+)
+
+# --- Main Interface ---
+st.header("📊 Visualiser et modifier les coûts des éléments")
+
+# Créer le tableau des coûts
+all_elements = list(set(infra_elements_selected + mosaic_elements + app_list))
 costs_data = {
     "Élément": all_elements,
+    "Type": ["Infrastructure" if e in infra_elements_available else "Application" for e in all_elements],
     "CAPEX (€)": [1000] * len(all_elements),
     "OPEX (€ / an)": [500] * len(all_elements)
 }
 costs_df = pd.DataFrame(costs_data)
-
-# --- Main Interface ---
-st.header("📊 Visualiser les éléments configurés")
 
 edited_df = st.data_editor(costs_df, num_rows="dynamic", use_container_width=True)
 st.divider()
@@ -62,6 +76,7 @@ for _, row in edited_df.iterrows():
     for phase in phases:
         simulation.append({
             "Élément": row["Élément"],
+            "Type": row["Type"],
             "Phase": phase,
             "Durée (mois)": phase_durations[phase],
             "CAPEX (€)": row["CAPEX (€)"] if phase == "Préparation au Closing" else 0,
