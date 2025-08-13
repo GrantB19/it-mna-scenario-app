@@ -29,21 +29,7 @@ def vue_base_de_donnees():
     if st.button("Ajouter l'application"):
         st.session_state.applications.loc[len(st.session_state.applications)] = [nom_app, opex_app, capex_app, adherences_app.split(","), socles_app]
 
-    
-    st.subheader("Importer un fichier Excel pour compléter les applications")
-    uploaded_file = st.file_uploader("Déposer un fichier Excel", type=["xlsx"])
-    if uploaded_file:
-        df_excel = pd.read_excel(uploaded_file, engine="openpyxl")
-        df_excel = df_excel.dropna(subset=["Nom"])
-        df_excel["Adherences"] = df_excel["Adherences"].apply(lambda x: [i.strip() for i in str(x).split(",")])
-        df_excel["Socles"] = df_excel["Socles"].apply(lambda x: [i.strip() for i in str(x).split(",")])
-        for _, row in df_excel.iterrows():
-            st.session_state.applications.loc[len(st.session_state.applications)] = [
-                row["Nom"], row.get("Opex", 0.0), row.get("Capex", 0.0), row["Adherences"], row["Socles"]
-            ]
-        st.success("Les données Excel ont été importées avec succès.")
-
-st.subheader("Ajouter une infrastructure")
+    st.subheader("Ajouter une infrastructure")
     nom_inf = st.text_input("Nom de l'infrastructure")
     opex_inf = st.number_input("Opex Infra", min_value=0.0, key="opex_inf")
     capex_inf = st.number_input("Capex Infra", min_value=0.0, key="capex_inf")
@@ -58,7 +44,7 @@ st.subheader("Ajouter une infrastructure")
     st.subheader("Applications enregistrées")
     st.dataframe(st.session_state.applications)
 
-    st.subheader("Infrastructures enregistrées")
+st.subheader("Infrastructures enregistrées")
     st.dataframe(st.session_state.infrastructures)
 
 # Vue 2 : Environnements entités existantes
