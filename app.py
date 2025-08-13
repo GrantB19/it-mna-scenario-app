@@ -44,7 +44,7 @@ def vue_base_de_donnees():
     st.subheader("Applications enregistrées")
     st.dataframe(st.session_state.applications)
 
-st.subheader("Infrastructures enregistrées")
+    st.subheader("Infrastructures enregistrées")
     st.dataframe(st.session_state.infrastructures)
 
 # Vue 2 : Environnements entités existantes
