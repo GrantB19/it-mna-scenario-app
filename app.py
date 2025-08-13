@@ -1,136 +1,81 @@
-
 import streamlit as st
-import pandas as pd
 
-# Page configuration
-st.set_page_config(page_title="IT M&A Scenario App", layout="wide")
-
-st.title("🧩 IT M&A Scenario Simulator")
-
-# --- Sidebar for mode selection ---
-mode = st.sidebar.radio("Choisir le mode", ["Administrateur", "Utilisateur"], key="mode_selector")
-
-# --- Shared Data Stores ---
+# Initialisation des données
 if "applications" not in st.session_state:
-    st.session_state["applications"] = pd.DataFrame(columns=["Nom", "CAPEX (€)", "OPEX (€ / an)"])
-if "infra_elements" not in st.session_state:
-    st.session_state["infra_elements"] = pd.DataFrame(columns=["Nom", "CAPEX (€)", "OPEX (€ / an)"])
-if "mosaic_socles" not in st.session_state:
-    st.session_state["mosaic_socles"] = {
-        "Entry": [],
-        "Advanced": [],
-        "Complete": []
-    }
-if "adh_app_app" not in st.session_state:
-    st.session_state["adh_app_app"] = pd.DataFrame(columns=["Application Source", "Application Cible"])
-if "adh_app_socle" not in st.session_state:
-    st.session_state["adh_app_socle"] = pd.DataFrame(columns=["Application", "Socle Mosaic"])
-if "entites" not in st.session_state:
-    st.session_state["entites"] = {}
+    st.session_state.applications = {}
+if "infrastructures" not in st.session_state:
+    st.session_state.infrastructures = {}
+if "mosaic" not in st.session_state:
+    st.session_state.mosaic = {"Entry": [], "Advanced": [], "Complete": []}
+if "app_mosaic_links" not in st.session_state:
+    st.session_state.app_mosaic_links = {}
+if "app_app_links" not in st.session_state:
+    st.session_state.app_app_links = {}
+if "domains" not in st.session_state:
+    st.session_state.domains = {"ASA": [], "AGC": [], "APTER": [], "AD": [], "AIS": []}
+if "entities" not in st.session_state:
+    st.session_state.entities = {}
 
-# --- Administrateur View ---
-if mode == "Administrateur":
-    st.header("🔧 Vue Administrateur")
+st.title("🧠 Due Diligence IT - Groupe Avril")
 
-    st.subheader("Définir les applications")
-    st.session_state["applications"] = st.data_editor(
-        st.session_state["applications"], num_rows="dynamic", use_container_width=True, key="admin_app_editor"
-    )
+# Vue 1 : Base de données
+st.header("1️⃣ Base de données")
 
-    st.subheader("Définir les éléments d'infrastructure")
-    st.session_state["infra_elements"] = st.data_editor(
-        st.session_state["infra_elements"], num_rows="dynamic", use_container_width=True, key="admin_infra_editor"
-    )
+with st.expander("📦 Ajouter une application"):
+    app_name = st.text_input("Nom de l'application")
+    app_opex = st.number_input("Coût Opex", min_value=0.0)
+    app_capex = st.number_input("Coût Capex", min_value=0.0)
+    if st.button("Ajouter l'application"):
+        st.session_state.applications[app_name] = {"Opex": app_opex, "Capex": app_capex}
 
-    st.subheader("Définir les socles Mosaic")
-    for socle in st.session_state["mosaic_socles"].keys():
-        selected_elements = st.multiselect(
-            f"Éléments pour le socle {socle}", 
-            st.session_state["infra_elements"]["Nom"].tolist(), 
-            default=st.session_state["mosaic_socles"][socle], 
-            key=f"mosaic_{socle}_select"
-        )
-        st.session_state["mosaic_socles"][socle] = selected_elements
+with st.expander("🖥️ Ajouter un élément d'infrastructure"):
+    infra_name = st.text_input("Nom de l'infrastructure")
+    infra_opex = st.number_input("Coût Opex infra", min_value=0.0)
+    infra_capex = st.number_input("Coût Capex infra", min_value=0.0)
+    if st.button("Ajouter l'infrastructure"):
+        st.session_state.infrastructures[infra_name] = {"Opex": infra_opex, "Capex": infra_capex}
 
-    st.subheader("Définir les adhérences entre applications")
-    st.session_state["adh_app_app"] = st.data_editor(
-        st.session_state["adh_app_app"], num_rows="dynamic", use_container_width=True, key="admin_adh_app_app"
-    )
+with st.expander("🧩 Composer les socles Mosaic"):
+    mosaic_type = st.selectbox("Type de socle", ["Entry", "Advanced", "Complete"])
+    infra_choice = st.selectbox("Ajouter une infrastructure au socle", list(st.session_state.infrastructures.keys()))
+    if st.button("Ajouter au socle Mosaic"):
+        st.session_state.mosaic[mosaic_type].append(infra_choice)
 
-    st.subheader("Définir les adhérences entre applications et socles Mosaic")
-    st.session_state["adh_app_socle"] = st.data_editor(
-        st.session_state["adh_app_socle"], num_rows="dynamic", use_container_width=True, key="admin_adh_app_socle"
-    )
+with st.expander("🔗 Définir les adhérences entre applications et socles Mosaic"):
+    app_select = st.selectbox("Application", list(st.session_state.applications.keys()), key="app_mosaic")
+    mosaic_select = st.selectbox("Socle Mosaic", ["Entry", "Advanced", "Complete"])
+    if st.button("Définir l'adhérence app-socle"):
+        st.session_state.app_mosaic_links.setdefault(app_select, []).append(mosaic_select)
 
-    st.subheader("Créer des environnements IT par entité juridique")
-    entite_name = st.text_input("Nom de l'entité juridique", key="entite_name_input")
-    if entite_name:
-        selected_apps = st.multiselect(
-            "Applications pour cette entité", 
-            st.session_state["applications"]["Nom"].tolist(), 
-            key="entite_apps_select"
-        )
-        selected_socle = st.selectbox("Socle Mosaic pour cette entité", list(st.session_state["mosaic_socles"].keys()), key="entite_socle_select")
-        if st.button("Enregistrer l'environnement IT", key="save_entite_env"):
-            st.session_state["entites"][entite_name] = {
-                "applications": selected_apps,
-                "socle": selected_socle
-            }
-            st.success(f"Environnement IT enregistré pour l'entité {entite_name}")
+with st.expander("🔗 Définir les adhérences entre applications"):
+    app_source = st.selectbox("Application source", list(st.session_state.applications.keys()), key="app_source")
+    app_target = st.selectbox("Application cible", list(st.session_state.applications.keys()), key="app_target")
+    if st.button("Définir l'adhérence app-app"):
+        st.session_state.app_app_links.setdefault(app_source, []).append(app_target)
 
-# --- Utilisateur View ---
-if mode == "Utilisateur":
-    st.header("👤 Vue Utilisateur")
+# Vue 2 : Création des environnements
+st.header("2️⃣ Création des environnements")
 
-    entite_selected = st.selectbox("Sélectionner une entité juridique", list(st.session_state["entites"].keys()), key="user_entite_select")
-    if entite_selected:
-        entite_data = st.session_state["entites"][entite_selected]
-        apps = entite_data["applications"]
-        socle = entite_data["socle"]
-        infra_elements = st.session_state["mosaic_socles"][socle]
+with st.expander("🏢 Créer une entité du Groupe Avril"):
+    entity_name = st.text_input("Nom de l'entité")
+    domain_select = st.selectbox("Domaine", list(st.session_state.domains.keys()))
+    if st.button("Créer l'entité"):
+        st.session_state.entities[entity_name] = {"Domaine": domain_select, "Applications": [], "Mosaic": None}
+        st.session_state.domains[domain_select].append(entity_name)
 
-        st.subheader("📦 Éléments IT sélectionnés")
-        st.write("**Applications :**", apps)
-        st.write("**Socle Mosaic :**", socle)
-        st.write("**Éléments d'infrastructure :**", infra_elements)
+with st.expander("🔧 Rattacher des éléments à une entité"):
+    entity_select = st.selectbox("Entité", list(st.session_state.entities.keys()))
+    apps_to_add = st.multiselect("Applications à rattacher", list(st.session_state.applications.keys()))
+    mosaic_to_add = st.selectbox("Socle Mosaic à rattacher", ["Entry", "Advanced", "Complete"])
+    if st.button("Rattacher les éléments"):
+        st.session_state.entities[entity_select]["Applications"] = apps_to_add
+        st.session_state.entities[entity_select]["Mosaic"] = mosaic_to_add
 
-        # Récupérer les coûts
-        all_elements = apps + infra_elements
-        costs = []
-        for el in all_elements:
-            app_row = st.session_state["applications"][st.session_state["applications"]["Nom"] == el]
-            infra_row = st.session_state["infra_elements"][st.session_state["infra_elements"]["Nom"] == el]
-            if not app_row.empty:
-                capex = app_row["CAPEX (€)"].values[0]
-                opex = app_row["OPEX (€ / an)"].values[0]
-            elif not infra_row.empty:
-                capex = infra_row["CAPEX (€)"].values[0]
-                opex = infra_row["OPEX (€ / an)"].values[0]
-            else:
-                capex = 0
-                opex = 0
-            costs.append({"Élément": el, "CAPEX (€)": capex, "OPEX (€ / an)": opex})
+# Visualisation
+st.header("📊 Visualisation des environnements")
 
-        costs_df = pd.DataFrame(costs)
-
-        st.subheader("📈 Simulation des coûts par phase M&A")
-        phases = ["Préparation au Closing", "Transition (TSA)", "Post-TSA"]
-        phase_durations = {
-            "Préparation au Closing": 3,
-            "Transition (TSA)": 6,
-            "Post-TSA": 12
-        }
-
-        simulation = []
-        for _, row in costs_df.iterrows():
-            for phase in phases:
-                simulation.append({
-                    "Élément": row["Élément"],
-                    "Phase": phase,
-                    "Durée (mois)": phase_durations[phase],
-                    "CAPEX (€)": row["CAPEX (€)"] if phase == "Préparation au Closing" else 0,
-                    "OPEX (€)": row["OPEX (€ / an)"] * (phase_durations[phase] / 12)
-                })
-
-        sim_df = pd.DataFrame(simulation)
-        st.dataframe(sim_df, use_container_width=True, key="user_simulation_table")
+for entity, data in st.session_state.entities.items():
+    st.subheader(f"Entité : {entity}")
+    st.write(f"Domaine : {data['Domaine']}")
+    st.write(f"Applications : {', '.join(data['Applications'])}")
+    st.write(f"Socle Mosaic : {data['Mosaic']}")
