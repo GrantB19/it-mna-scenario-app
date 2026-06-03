@@ -236,7 +236,7 @@ if view == "🗄️ Base de données":
                 selected_adh = st.multiselect(
                     f"**{app['name']}** → adhère à",
                     options=others,
-                    default=current_adh := current_app_adh,
+                    default=current_app_adh,
                     key=f"adh_app_{i}"
                 )
                 st.session_state.applications[i]["adherences_apps"] = selected_adh
